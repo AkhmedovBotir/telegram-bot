@@ -1,0 +1,37 @@
+User 7438468026 (Admin: false) interacted with the bot
+Error generating new invite link: TypeError: Cannot read properties of undefined (reading 'exportChatInviteLink')
+    at Object.generateNewInviteLink (/home/runner/workspace/utils/helpers.js:107:40)
+    at sendGroupInvite (/home/runner/workspace/handlers/userHandler.js:233:39)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.handleStart (/home/runner/workspace/handlers/userHandler.js:48:9)
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+User 7438468026 (Admin: false) interacted with the bot
+Error generating new invite link: TypeError: Cannot read properties of undefined (reading 'exportChatInviteLink')
+    at Object.generateNewInviteLink (/home/runner/workspace/utils/helpers.js:107:40)
+    at sendGroupInvite (/home/runner/workspace/handlers/userHandler.js:233:39)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.handleStart (/home/runner/workspace/handlers/userHandler.js:48:9)
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+User 7438468026 (Admin: false) interacted with the bot
+User 7438468026 (Admin: false) interacted with the bot
+Error generating new invite link: TypeError: Cannot read properties of undefined (reading 'exportChatInviteLink')
+    at Object.generateNewInviteLink (/home/runner/workspace/utils/helpers.js:107:40)
+    at sendGroupInvite (/home/runner/workspace/handlers/userHandler.js:233:39)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.handleStart (/home/runner/workspace/handlers/userHandler.js:48:9)
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
+    at async execute (/home/runner/workspace/node_modules/telegraf/lib/composer.js:518:17)
+    at async /home/runner/workspace/node_modules/telegraf/lib/composer.js:519:21
