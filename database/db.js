@@ -1,9 +1,12 @@
-const mongoose = require('mongoose');
-const config = require('../config');
 
-const connectDB = async () => {
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+export const connectDB = async () => {
   try {
-    await mongoose.connect(config.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/telegram_bot');
     console.log('MongoDB connected successfully');
     
     // Handle connection events
@@ -22,5 +25,3 @@ const connectDB = async () => {
     return null;
   }
 };
-
-module.exports = { connectDB };

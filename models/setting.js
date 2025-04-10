@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+
+import mongoose from 'mongoose';
 
 const settingSchema = new mongoose.Schema({
   key: {
@@ -27,4 +28,5 @@ settingSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('Setting', settingSchema);
+const Setting = mongoose.model('Setting', settingSchema);
+export default Setting;

@@ -1,20 +1,23 @@
-const { Telegraf, session } = require('telegraf');
-const mongoose = require('mongoose');
-const config = require('./config');
-const { connectDB } = require('./database/db');
-const User = require('./models/user');
-const Setting = require('./models/setting');
+
+import { Telegraf, session } from 'telegraf';
+import mongoose from 'mongoose';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import config from './config.js';
+import { connectDB } from './database/db.js';
+import User from './models/user.js';
+import Setting from './models/setting.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Initialize the bot first so it can be exported
-const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
-
-// Export the bot instance
-module.exports.bot = bot;
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 // Import handlers after bot has been initialized
-const helpers = require('./utils/helpers');
-const adminHandler = require('./handlers/adminHandler');
-const userHandler = require('./handlers/userHandler');
+import * as helpers from './utils/helpers.js';
+import { adminHandler } from './handlers/adminHandler.js';
+import userHandler from './handlers/userHandler.js';
 
 // Connect to MongoDB
 connectDB();
@@ -24,6 +27,14 @@ helpers.initializeSettings();
 
 // Use session middleware
 bot.use(session());
+
+// Import and start notification system
+import { checkExpiringMemberships } from './utils/notifications.js';
+// Check every 30 minutes
+setInterval(checkExpiringMemberships, 30 * 60 * 1000);
+
+// Initial check on startup
+setTimeout(checkExpiringMemberships, 5000);
 
 // Set up middleware to check user status
 bot.use(async (ctx, next) => {
@@ -103,9 +114,9 @@ bot.launch()
     console.log('Bot started successfully!');
     
     // Check if new invite links feature is active
-    if (config.GENERATE_NEW_INVITE_LINKS) {
-      if (config.GROUP_ID) {
-        console.log(`New invite link generation active for group: ${config.GROUP_ID}`);
+    if (process.env.GENERATE_NEW_INVITE_LINKS) {
+      if (process.env.GROUP_ID) {
+        console.log(`New invite link generation active for group: ${process.env.GROUP_ID}`);
       } else {
         console.warn('GENERATE_NEW_INVITE_LINKS is enabled but GROUP_ID is not set. New links will not be generated.');
       }
@@ -118,3 +129,5 @@ bot.launch()
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+export { bot };

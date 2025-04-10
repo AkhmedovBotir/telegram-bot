@@ -1,9 +1,9 @@
-const Setting = require('../models/setting');
-const User = require('../models/user');
-const config = require('../config');
+import Setting from '../models/setting.js';
+import User from '../models/user.js';
+import config from '../config.js';
 
 // Initialize default bot settings
-const initializeSettings = async () => {
+export const initializeSettings = async () => {
   try {
     // Define default text settings
     const defaultSettings = [
@@ -60,7 +60,7 @@ const initializeSettings = async () => {
 };
 
 // Check and update user membership status
-const checkMembershipStatus = async (bot) => {
+export const checkMembershipStatus = async (bot) => {
   try {
     const now = new Date();
     
@@ -95,13 +95,13 @@ const checkMembershipStatus = async (bot) => {
 };
 
 // Format date for display
-const formatDate = (date) => {
+export const formatDate = (date) => {
   if (!date) return 'N/A';
   return date.toLocaleDateString();
 };
 
 // Generate a new invite link for the group
-const generateNewInviteLink = async (telegram, chatId) => {
+export const generateNewInviteLink = async (telegram, chatId) => {
   try {
     // Make sure chatId is valid
     if (!chatId) {
@@ -110,11 +110,11 @@ const generateNewInviteLink = async (telegram, chatId) => {
     }
     
     // Use direct access from Telegraf bot instance
-    const { Telegraf } = require('telegraf');
-    const config = require('../config');
+    const { Telegraf } = await import('telegraf');
+    const config = await import('../config.js');
     
     // Create a temporary bot instance for this operation to avoid circular dependencies
-    const tempBot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+    const tempBot = new Telegraf(config.default.TELEGRAM_BOT_TOKEN);
     
     // Use the bot's telegram instance to create a new invite link
     const newLink = await tempBot.telegram.exportChatInviteLink(chatId);
@@ -124,11 +124,4 @@ const generateNewInviteLink = async (telegram, chatId) => {
     // Return null if there was an error
     return null;
   }
-};
-
-module.exports = {
-  initializeSettings,
-  checkMembershipStatus,
-  formatDate,
-  generateNewInviteLink
 };

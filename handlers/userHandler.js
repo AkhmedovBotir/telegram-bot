@@ -1,9 +1,17 @@
-const { Markup } = require('telegraf');
-const User = require('../models/user');
-const Setting = require('../models/setting');
-const config = require('../config');
-const keyboards = require('../utils/keyboard');
-const helpers = require('../utils/helpers');
+import { Markup } from 'telegraf';
+import User from '../models/user.js';
+import Setting from '../models/setting.js';
+import config from '../config.js';
+import { phoneKeyboard, expiredUserKeyboard, activeUserKeyboard, backButtonsKeyboard } from '../utils/keyboard.js';
+import { initializeSettings, checkMembershipStatus, formatDate, generateNewInviteLink } from '../utils/helpers.js';
+import path from 'path';
+import fs from 'fs';
+import fetch from 'node-fetch';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // User command handlers
 const userHandler = {
@@ -72,6 +80,56 @@ const userHandler = {
     } catch (error) {
       console.error('Error in user callback handler:', error);
       await ctx.reply('So\'rovingizni qayta ishlashda xatolik yuz berdi.');
+    }
+  },
+
+  // Handle photo messages
+  handlePhoto: async (ctx) => {
+    try {
+      const telegramId = ctx.from.id;
+      const user = await User.findOne({ telegramId });
+
+      if (!user || user.state !== 'waiting_payment') {
+        return ctx.reply('Iltimos, avval /start buyrug\'ini yuboring.');
+      }
+
+      const photo = ctx.message.photo[ctx.message.photo.length - 1];
+      const date = new Date();
+      const fileName = `image_${date.toISOString().split('T')[0]}_${user.telegramId}.jpg`;
+      
+      // Download and save photo
+      const file = await ctx.telegram.getFile(photo.file_id);
+      const filePath = path.join(__dirname, '..', 'uploads', fileName);
+      
+      // Create uploads directory if it doesn't exist
+      if (!fs.existsSync(path.join(__dirname, '..', 'uploads'))) {
+        fs.mkdirSync(path.join(__dirname, '..', 'uploads'));
+      }
+
+      // Download and save the file
+      const fileUrl = `https://api.telegram.org/file/bot${config.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+      const response = await fetch(fileUrl);
+      const buffer = await response.buffer();
+      fs.writeFileSync(filePath, buffer);
+      
+      // Save image info to user
+      user.paymentImage = fileName;
+      user.paymentDate = date;
+      user.state = 'waiting_approval';
+      await user.save();
+
+      await ctx.reply('To\'lov cheki qabul qilindi. Administrator tekshirishi kutilmoqda.');
+
+      // Notify admin about new payment
+      if (config.ADMIN_USER_ID) {
+        await ctx.telegram.sendMessage(
+          config.ADMIN_USER_ID,
+          `Yangi to'lov cheki:\nFoydalanuvchi: ${user.fullName}\nTelefon: ${user.phoneNumber}\nID: ${user.telegramId}`
+        );
+      }
+    } catch (error) {
+      console.error('Error handling photo:', error);
+      await ctx.reply('Xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.');
     }
   },
 
@@ -216,22 +274,49 @@ async function processRegistrationComplete(ctx, user) {
 // Send the group invite link to the user
 async function sendGroupInvite(ctx, user) {
   try {
+    // Faqat active holatdagi va ruxsati bor foydalanuvchilarga link beriladi
+    if (user.state !== 'active' || !user.accessGranted) {
+      return ctx.reply('Guruhga qo\'shilish uchun admin tasdiqini kutishingiz kerak.');
+    }
+
+    // Check if user is a member of the group
+    let isMember = false;
+    if (config.GROUP_ID) {
+      try {
+        const chatMember = await ctx.telegram.getChatMember(config.GROUP_ID, user.telegramId);
+        isMember = ['member', 'administrator', 'creator'].includes(chatMember.status);
+        user.isInGroup = isMember;
+        await user.save();
+      } catch (error) {
+        console.error('Error checking group membership:', error);
+        user.isInGroup = false;
+        await user.save();
+      }
+    }
+
+    if (isMember) {
+      // If user is already in group, just show subscription status
+      const daysLeft = Math.ceil((new Date(user.accessExpiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+      await ctx.reply(
+        `Siz guruh a'zosisiz! Obunangiz ${user.accessExpiryDate.toLocaleDateString()} gacha amal qiladi.\nQolgan kunlar: ${daysLeft}`,
+        Markup.inlineKeyboard([
+          Markup.button.callback('Muddat holatini tekshirish', 'check_expiry')
+        ])
+      );
+      return;
+    }
+
     const inviteSetting = await Setting.findOne({ key: 'text_group_invite' });
     const inviteText = inviteSetting ? inviteSetting.value : 
       `Guruhga taklif havolasi. Bu havola ${config.FREE_ACCESS_DAYS} kun davomida ${user.accessExpiryDate.toLocaleDateString()} gacha amal qiladi.`;
     
     let inviteLink = config.GROUP_INVITE_LINK;
     
-    // Use existing invite link if the user already has one
-    if (user.inviteLink) {
-      inviteLink = user.inviteLink;
-      console.log(`Using existing invite link for user ${user.telegramId}`);
-    }
-    // Generate a new invite link if configured to do so and user doesn't have one yet
-    else if (config.GENERATE_NEW_INVITE_LINKS && config.GROUP_ID) {
+    // Har doim yangi link generatsiya qilish
+    if (config.GENERATE_NEW_INVITE_LINKS && config.GROUP_ID) {
       try {
         // Use the new helper function with the telegram instance
-        const newLink = await helpers.generateNewInviteLink(ctx.telegram, config.GROUP_ID);
+        const newLink = await generateNewInviteLink(ctx.telegram, config.GROUP_ID);
         if (newLink) {
           inviteLink = newLink;
           
@@ -266,14 +351,13 @@ async function handleExpiredAccess(ctx, user) {
   try {
     const expiredSetting = await Setting.findOne({ key: 'text_access_expired' });
     const expiredText = expiredSetting ? expiredSetting.value : 
-      'Guruhga kirishingiz muddati tugadi. Agar a\'zoligingizni yangilamoqchi bo\'lsangiz, administrator bilan bog\'laning.';
+      'Guruhga kirishingiz muddati tugadi. Yangilash uchun to\'lov chekini yuborishingiz kerak.';
     
-    await ctx.reply(
-      expiredText,
-      Markup.inlineKeyboard([
-        Markup.button.callback('Ruxsat so\'rash', 'request_access')
-      ])
-    );
+    await ctx.reply("To'lov chekini rasm ko'rinishida yuboring.");
+
+    // Set user state to waiting for payment
+    user.state = 'waiting_payment';
+    await user.save();
   } catch (error) {
     console.error('Error handling expired access:', error);
     await ctx.reply('Xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko\'ring.');
@@ -344,4 +428,4 @@ async function checkExpiryStatus(ctx) {
   }
 }
 
-module.exports = userHandler;
+export default userHandler;

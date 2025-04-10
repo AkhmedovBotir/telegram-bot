@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+
+import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
   telegramId: {
@@ -33,7 +34,7 @@ const userSchema = new mongoose.Schema({
   },
   state: {
     type: String,
-    enum: ['new', 'waiting_name', 'waiting_phone', 'active', 'expired'],
+    enum: ['new', 'waiting_name', 'waiting_phone', 'waiting_payment', 'waiting_approval', 'active', 'expired'],
     default: 'new'
   },
   isInGroup: {
@@ -47,11 +48,27 @@ const userSchema = new mongoose.Schema({
   inviteLink: {
     type: String,
     default: null
+  },
+  paymentImage: {
+    type: String,
+    default: null
+  },
+  paymentDate: {
+    type: Date,
+    default: null
+  },
+  lastNotification: {
+    type: Date,
+    default: null
+  },
+  notificationCount: {
+    type: Number,
+    default: 0
   }
 });
 
-// Add index for improving query performance - removed duplicate telegramId index
 userSchema.index({ state: 1 });
 userSchema.index({ accessExpiryDate: 1 });
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+export default User;

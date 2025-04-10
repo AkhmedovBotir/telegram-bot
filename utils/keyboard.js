@@ -1,55 +1,30 @@
-const { Markup } = require('telegraf');
+import { Markup } from 'telegraf';
 
-// Keyboard for admin main menu
-const adminMainKeyboard = () => {
+export const adminMainKeyboard = () => {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('Kutilayotganlar', 'waiting_list')],
-    [Markup.button.callback('Foydalanuvchilar', 'users_list')],
-    [Markup.button.callback('Tugayotgan azoliklar', 'expiring_memberships')],
+    [Markup.button.callback('Kutish ro\'yxati', 'waiting_list')],
+    [Markup.button.callback('Foydalanuvchilar ro\'yxati', 'users_list')],
+    [Markup.button.callback('Muddati tugayotgan a\'zoliklar', 'expiring_memberships')],
     [Markup.button.callback('Matnlarni tahrirlash', 'edit_texts')],
     [Markup.button.callback('Statistika', 'statistics')]
   ]);
 };
 
-// Keyboard for contact sharing
-const phoneKeyboard = () => {
-  return Markup.keyboard([
-    [Markup.button.contactRequest('Telefon raqamni yuborish')]
-  ]).resize();
-};
+export const phoneKeyboard = Markup.keyboard([
+  [Markup.button.contactRequest('Telefon raqamni yuborish')]
+]).resize();
 
-// Keyboard for user with expired access
-const expiredUserKeyboard = () => {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('Ruxsat so\'rash', 'request_access')]
-  ]);
-};
+export const expiredUserKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('Yangi ruxsat so\'rash', 'request_access')]
+]);
 
-// Keyboard for active user
-const activeUserKeyboard = (groupLink) => {
-  return Markup.inlineKeyboard([
-    [Markup.button.url('Guruhga o\'tish', groupLink)],
-    [Markup.button.callback('Muddat holatini tekshirish', 'check_expiry')]
-  ]);
-};
+export const activeUserKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('Muddat holatini tekshirish', 'check_expiry')]
+]);
 
-// Keyboard for back buttons
-const backButtonsKeyboard = (showEdit = false) => {
-  let buttons = [];
-  
-  if (showEdit) {
-    buttons.push([Markup.button.callback('Yana matn tahrirlash', 'edit_texts')]);
-  }
-  
-  buttons.push([Markup.button.callback('Asosiy menyuga qaytish', 'back_to_main')]);
-  
-  return Markup.inlineKeyboard(buttons);
-};
-
-module.exports = {
-  adminMainKeyboard,
-  phoneKeyboard,
-  expiredUserKeyboard,
-  activeUserKeyboard,
-  backButtonsKeyboard
-};
+export const backButtonsKeyboard = Markup.inlineKeyboard([
+  [
+    Markup.button.callback('Kutish ro\'yxatiga qaytish', 'waiting_list'),
+    Markup.button.callback('Asosiy menyuga qaytish', 'back_to_main')
+  ]
+]);

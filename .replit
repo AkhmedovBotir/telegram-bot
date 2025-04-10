@@ -1,4 +1,5 @@
 modules = ["nodejs-20"]
+run = "node index.js"
 
 [nix]
 channel = "stable-24_05"
@@ -30,4 +31,4 @@ task = "shell.exec"
 args = "npm install && node index.js"
 
 [deployment]
-run = ["sh", "-c", "npm install && node index.js"]
+run = ["sh", "-c", "node index.js"]

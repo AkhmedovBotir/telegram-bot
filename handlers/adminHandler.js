@@ -1,18 +1,17 @@
-const { Markup } = require('telegraf');
-const User = require('../models/user');
-const Setting = require('../models/setting');
-const config = require('../config');
-const keyboards = require('../utils/keyboard');
-const helpers = require('../utils/helpers');
+import { Markup } from 'telegraf';
+import User from '../models/user.js';
+import Setting from '../models/setting.js';
+import config from '../config.js';
+import { adminMainKeyboard } from '../utils/keyboard.js';
+import { generateNewInviteLink } from '../utils/helpers.js';
 
-// Admin command handlers
-const adminHandler = {
+export const adminHandler = {
   // Handle start command for admin
   handleStart: async (ctx) => {
     try {
       await ctx.reply(
         `Assalomu alaykum, Admin!\nBugun nimalarni boshqarmoqchisiz?`,
-        keyboards.adminMainKeyboard()
+        adminMainKeyboard()
       );
     } catch (error) {
       console.error('Error in admin start handler:', error);
@@ -65,8 +64,8 @@ const adminHandler = {
       if (ctx.session.editingText) {
         return saveEditedText(ctx);
       }
-      
-      await ctx.reply('Iltimos, navigatsiya uchun tugmalardan foydalaning.', keyboards.adminMainKeyboard());
+
+      await ctx.reply('Iltimos, navigatsiya uchun tugmalardan foydalaning.', adminMainKeyboard());
     } catch (error) {
       console.error('Error in admin text handler:', error);
       await ctx.reply('Xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.');
@@ -77,10 +76,9 @@ const adminHandler = {
 // Handle waiting list
 async function handleWaitingList(ctx) {
   try {
-    const waitingUsers = await User.find({ 
-      state: 'waiting_name',
-      accessGranted: false 
-    }).sort({ registrationDate: 1 });
+    const waitingUsers = await User.find({
+      state: 'waiting_approval'
+    }).sort({ paymentDate: 1 });
 
     if (waitingUsers.length === 0) {
       return ctx.reply(
@@ -92,7 +90,7 @@ async function handleWaitingList(ctx) {
     }
 
     let message = 'Kutish Ro\'yxati:\n\n';
-    
+
     for (const user of waitingUsers) {
       message += `Foydalanuvchi ID: ${user.telegramId}\n`;
       message += `Ism: ${user.fullName || 'Kiritilmagan'}\n`;
@@ -115,9 +113,9 @@ async function handleWaitingList(ctx) {
 // Handle users list
 async function handleUsersList(ctx) {
   try {
-    const activeUsers = await User.find({ 
+    const activeUsers = await User.find({
       state: 'active',
-      accessGranted: true 
+      accessGranted: true
     }).sort({ accessExpiryDate: 1 }).limit(10);
 
     if (activeUsers.length === 0) {
@@ -130,7 +128,7 @@ async function handleUsersList(ctx) {
     }
 
     let message = 'Active Users:\n\n';
-    
+
     for (const user of activeUsers) {
       message += `User ID: ${user.telegramId}\n`;
       message += `Name: ${user.fullName || 'Not provided'}\n`;
@@ -173,17 +171,17 @@ async function handleExpiringMemberships(ctx) {
 
     let message = 'Memberships Expiring in the Next 7 Days:\n\n';
     let buttons = [];
-    
+
     for (const user of expiringUsers) {
       message += `User ID: ${user.telegramId}\n`;
       message += `Name: ${user.fullName || 'Not provided'}\n`;
       message += `Access Expires: ${user.accessExpiryDate.toLocaleDateString()}\n\n`;
-      
+
       buttons.push([
         Markup.button.callback(`Extend ${user.fullName || user.telegramId}`, `extend_user_${user.telegramId}`)
       ]);
     }
-    
+
     buttons.push([Markup.button.callback('Back to Main Menu', 'back_to_main')]);
 
     await ctx.reply(message, Markup.inlineKeyboard(buttons));
@@ -197,7 +195,7 @@ async function handleExpiringMemberships(ctx) {
 async function extendUser(ctx, userId) {
   try {
     const user = await User.findOne({ telegramId: userId });
-    
+
     if (!user) {
       return ctx.reply('User not found.');
     }
@@ -205,7 +203,7 @@ async function extendUser(ctx, userId) {
     // Extend user's access by the free access days
     const newExpiryDate = user.accessExpiryDate ? new Date(user.accessExpiryDate) : new Date();
     newExpiryDate.setDate(newExpiryDate.getDate() + config.FREE_ACCESS_DAYS);
-    
+
     user.accessExpiryDate = newExpiryDate;
     user.accessGranted = true;
     user.state = 'active';
@@ -237,7 +235,7 @@ async function extendUser(ctx, userId) {
 // Handle text editing
 async function handleEditTexts(ctx) {
   try {
-    const settings = await Setting.find({ 
+    const settings = await Setting.find({
       key: { $regex: /^text_/ }
     }).sort({ key: 1 });
 
@@ -252,14 +250,14 @@ async function handleEditTexts(ctx) {
 
     let message = 'Select a text to edit:\n\n';
     let buttons = [];
-    
+
     for (const setting of settings) {
       const displayName = setting.description || setting.key.replace('text_', '');
       buttons.push([
         Markup.button.callback(displayName, `edit_text_${setting.key}`)
       ]);
     }
-    
+
     buttons.push([Markup.button.callback('Back to Main Menu', 'back_to_main')]);
 
     await ctx.reply(message, Markup.inlineKeyboard(buttons));
@@ -273,13 +271,13 @@ async function handleEditTexts(ctx) {
 async function startEditText(ctx, textKey) {
   try {
     const setting = await Setting.findOne({ key: textKey });
-    
+
     if (!setting) {
       return ctx.reply('Text setting not found.');
     }
 
     ctx.session.editingText = textKey;
-    
+
     await ctx.reply(
       `Current text for "${setting.description || textKey}":\n\n${setting.value}\n\nPlease send the new text:`
     );
@@ -294,15 +292,15 @@ async function saveEditedText(ctx) {
   try {
     const textKey = ctx.session.editingText;
     const newText = ctx.message.text;
-    
+
     await Setting.updateOne(
       { key: textKey },
       { $set: { value: newText, updatedAt: new Date() } }
     );
-    
+
     // Clear editing state
     delete ctx.session.editingText;
-    
+
     await ctx.reply(
       'Text updated successfully!',
       Markup.inlineKeyboard([
@@ -313,7 +311,7 @@ async function saveEditedText(ctx) {
   } catch (error) {
     console.error('Error saving edited text:', error);
     await ctx.reply('An error occurred while saving the text.');
-    
+
     // Clear editing state
     delete ctx.session.editingText;
   }
@@ -327,14 +325,14 @@ async function handleStatistics(ctx) {
     const activeUsers = await User.countDocuments({ state: 'active', accessGranted: true });
     const waitingUsers = await User.countDocuments({ state: 'waiting_name' });
     const expiredUsers = await User.countDocuments({ state: 'expired' });
-    
+
     // Get users registered today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const registeredToday = await User.countDocuments({ 
+    const registeredToday = await User.countDocuments({
       registrationDate: { $gte: today }
     });
-    
+
     // Memberships expiring soon
     const sevenDaysLater = new Date();
     sevenDaysLater.setDate(today.getDate() + 7);
@@ -367,24 +365,27 @@ async function handleStatistics(ctx) {
 async function approveUser(ctx, userId) {
   try {
     const user = await User.findOne({ telegramId: userId });
-    
+
     if (!user) {
       return ctx.reply('Foydalanuvchi topilmadi.');
     }
 
     // Set access expiry date (10 days from now)
+    // To'lov cheki tasdiqlanganda 30 kunlik muddat berish
     const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + config.FREE_ACCESS_DAYS);
-    
+    const daysToAdd = user.state === 'waiting_approval' ? 30 : config.FREE_ACCESS_DAYS;
+    expiryDate.setDate(expiryDate.getDate() + daysToAdd);
+
     user.accessGranted = true;
     user.accessExpiryDate = expiryDate;
     user.state = 'active';
-    
+    user.isInGroup = false; // Yangi link bilan kirishi kerak
+
     // Generate a new invite link if configured to do so
     let inviteLink = config.GROUP_INVITE_LINK;
     if (config.GENERATE_NEW_INVITE_LINKS && config.GROUP_ID) {
       try {
-        const newLink = await helpers.generateNewInviteLink(ctx.telegram, config.GROUP_ID);
+        const newLink = await generateNewInviteLink(ctx.telegram, config.GROUP_ID);
         if (newLink) {
           inviteLink = newLink;
           user.inviteLink = newLink;
@@ -394,7 +395,7 @@ async function approveUser(ctx, userId) {
         console.error('Error generating invite link during approval:', linkError);
       }
     }
-    
+
     await user.save();
 
     // Try to add user to the group
@@ -424,7 +425,7 @@ async function approveUser(ctx, userId) {
 async function rejectUser(ctx, userId) {
   try {
     const user = await User.findOne({ telegramId: userId });
-    
+
     if (!user) {
       return ctx.reply('Foydalanuvchi topilmadi.');
     }
@@ -455,5 +456,3 @@ async function rejectUser(ctx, userId) {
     await ctx.reply('Foydalanuvchini rad etishda xatolik yuz berdi.');
   }
 }
-
-module.exports = adminHandler;
