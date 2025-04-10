@@ -30,8 +30,8 @@ bot.use(session());
 
 // Import and start notification system
 import { checkExpiringMemberships } from './utils/notifications.js';
-// Check every 30 minutes
-setInterval(checkExpiringMemberships, 30 * 60 * 1000);
+// Check every 45 seconds to avoid rate limiting
+setInterval(checkExpiringMemberships, 45000);
 
 // Initial check on startup
 setTimeout(checkExpiringMemberships, 5000);
