@@ -1,74 +1,75 @@
-
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
   telegramId: {
     type: Number,
     required: true,
-    unique: true,
-    index: true
-  },
-  fullName: {
-    type: String,
-    trim: true
-  },
-  phoneNumber: {
-    type: String,
-    trim: true
+    unique: true
   },
   username: {
     type: String,
-    trim: true
+    required: false
   },
-  registrationDate: {
+  firstName: {
+    type: String,
+    required: false
+  },
+  lastName: {
+    type: String,
+    required: false
+  },
+  role: {
+    type: String,
+    enum: ['user', 'driver', 'undefined'],
+    default: 'undefined'
+  },
+  // Haydovchi uchun qo'shimcha ma'lumotlar
+  fullName: {
+    type: String,
+    required: false
+  },
+  phoneNumber: {
+    type: String,
+    required: false
+  },
+  // User statusi - keyingi xabar bilan nima qilish kerakligini ko'rsatadi
+  state: {
+    type: String,
+    enum: ['normal', 'waiting_fullname', 'waiting_phone', 'waiting_payment_photo'],
+    default: 'normal'
+  },
+  // To'lov holati
+  paymentStatus: {
+    type: String,
+    enum: ['none', 'pending', 'approved', 'rejected'],
+    default: 'none'
+  },
+  createdAt: {
     type: Date,
     default: Date.now
   },
-  accessGranted: {
-    type: Boolean,
-    default: false
-  },
-  accessExpiryDate: {
+  updatedAt: {
     type: Date,
-    default: null
-  },
-  state: {
-    type: String,
-    enum: ['new', 'waiting_name', 'waiting_phone', 'waiting_payment', 'waiting_approval', 'active', 'expired'],
-    default: 'new'
-  },
-  isInGroup: {
-    type: Boolean,
-    default: false
+    default: Date.now
   },
   lastInteraction: {
     type: Date,
     default: Date.now
-  },
-  inviteLink: {
-    type: String,
-    default: null
-  },
-  paymentImage: {
-    type: String,
-    default: null
-  },
-  paymentDate: {
-    type: Date,
-    default: null
-  },
-  lastNotification: {
-    type: Date,
-    default: null
-  },
-  notificationCount: {
-    type: Number,
-    default: 0
   }
 });
 
-userSchema.index({ state: 1 });
-userSchema.index({ accessExpiryDate: 1 });
+// Update the last interaction time
+userSchema.methods.updateLastInteraction = function() {
+  this.lastInteraction = Date.now();
+  return this.save();
+};
+
+// Set user role
+userSchema.methods.setRole = function(role) {
+  this.role = role;
+  return this.save();
+};
 
 const User = mongoose.model('User', userSchema);
-export default User;
+
+module.exports = User;

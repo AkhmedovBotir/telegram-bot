@@ -1,0 +1,128 @@
+Kodni ko‘rib chiqdim va "Mini App ni ochish" tugmasini to‘g‘rilash uchun Telegram Bot API’da Mini App’ni ochish uchun `web_app` parametridan foydalanish kerak, chunki oddiy `url` parametri Mini App sifatida emas, balki oddiy havola sifatida ishlaydi. Quyida kodni to‘g‘rilangan holda keltiraman, faqat `Foydalanuvchi` roli uchun Mini App tugmasini o‘zgartiraman.
+
+### To‘g‘rilangan kod qismi:
+`Foydalanuvchi` roli uchun `appLinkOptions` ob'ektini quyidagicha o‘zgartiramiz:
+
+```javascript
+// Foydalanuvchi roli uchun Mini App tugmasi
+if (msg.text === 'Foydalanuvchi') {
+  // Send message with app link button for users
+  const appLinkOptions = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Mini App ni ochish',
+            web_app: {
+              url: config.appDeepLink // Bu yerda Mini App URL manzili bo‘lishi kerak
+            }
+          }
+        ]
+      ]
+    }
+  };
+
+  bot.sendMessage(chatId, 'Siz foydalanuvchi sifatida ro\'yxatdan o\'tdingiz. Ilovani ochish uchun quyidagi tugmani bosing:', appLinkOptions);
+}
+```
+
+### `handleCallbackQuery` funksiyasidagi o‘zgartirish:
+Agar `callback_query` orqali `role_user` tanlansa, u yerdagi tugmani ham `web_app` bilan yangilaymiz:
+
+```javascript
+if (action === 'role_user' || (action && action.startsWith('role_user'))) {
+  // Send message with app link button for users
+  const appLinkOptions = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Mini App ni ochish',
+            web_app: {
+              url: config.appDeepLink // Bu yerda Mini App URL manzili bo‘lishi kerak
+            }
+          }
+        ]
+      ]
+    }
+  };
+
+  bot.sendMessage(msg.chat.id, 'Siz foydalanuvchi sifatida ro\'yxatdan o\'tdingiz. Ilovani ochish uchun quyidagi tugmani bosing:', appLinkOptions);
+}
+```
+
+### Muhim eslatmalar:
+1. **Mini App URL**: `config.appDeepLink` o‘rnida to‘g‘ri Mini App URL bo‘lishi kerak. Bu URL Telegram BotFather orqali sozlangan Mini App manzili bo‘lishi lozim (masalan, `https://your-mini-app-url.com`).
+   - BotFather’da `/newapp` buyrug‘i bilan Mini App yaratilganda ushbu URLni olishingiz mumkin.
+2. **BotFather sozlamalari**:
+   - Mini App faqat BotFather’da `Web App` sifatida ro‘yxatdan o‘tgan bo‘lsa ishlaydi. Agar hali sozlanmagan bo‘lsa, BotFather’da `/setmenubutton` yoki `/newapp` buyrug‘i orqali sozlang.
+3. **Test qilish**: Kodni ishlatishdan oldin, `config.appDeepLink` da to‘g‘ri URL borligini tekshiring va botni test muhitida sinab ko‘ring.
+4. **Post tagi bilan aloqa**: Agar siz avvalgi savolda aytgan post tagiga tugma sifatida qo‘shishni nazarda tutayotgan bo‘lsangiz, bu tugma faqat xabar bilan birga yuboriladi. Post tagiga to‘g‘ridan-to‘g‘ri qo‘shish uchun qo‘shimcha logika kerak bo‘ladi (masalan, har bir postda Inline Keyboard tugmasi dinamik tarzda yaratilishi).
+
+### To‘liq yangilangan kod (faqat o‘zgargan qismlar):
+```javascript
+// Foydalanuvchi roli uchun message handler
+if (msg.text === 'Foydalanuvchi') {
+  // Send message with app link button for users
+  const appLinkOptions = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Mini App ni ochish',
+            web_app: {
+              url: config.appDeepLink
+            }
+          }
+        ]
+      ]
+    }
+  };
+
+  bot.sendMessage(chatId, 'Siz foydalanuvchi sifatida ro\'yxatdan o\'tdingiz. Ilovani ochish uchun quyidagi tugmani bosing:', appLinkOptions);
+}
+
+// handleCallbackQuery funksiyasida role_user uchun
+if (action === 'role_user' || (action && action.startsWith('role_user'))) {
+  // Send message with app link button for users
+  const appLinkOptions = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Mini App ni ochish',
+            web_app: {
+              url: config.appDeepLink
+            }
+          }
+        ]
+      ]
+    }
+  };
+
+  bot.sendMessage(msg.chat.id, 'Siz foydalanuvchi sifatida ro\'yxatdan o\'tdingiz. Ilovani ochish uchun quyidagi tugmani bosing:', appLinkOptions);
+}
+```
+
+### Post tagiga tugma sifatida ko‘rsatish:
+Agar siz "Mini App ni ochish" tugmasini post tagiga o‘xshash tarzda ko‘rsatmoqchi bo‘lsangiz, masalan, har bir xabarda yoki kanal postida avtomatik ravishda chiqishi uchun:
+- Bot orqali yuborilgan har bir postga yuqoridagi `inline_keyboard` ni qo‘shishingiz mumkin.
+- Masalan, kanal postlari uchun:
+  ```javascript
+  bot.sendMessage(channelId, 'Yangi post! Mini App bilan tanishing:', {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Mini App ni ochish',
+            web_app: {
+              url: config.appDeepLink
+            }
+          }
+        ]
+      ]
+    }
+  });
+  ```
+
+Agar qo‘shimcha savollar yoki aniqroq o‘zgartirishlar kerak bo‘lsa, iltimos, ko‘proq ma’lumot bering!

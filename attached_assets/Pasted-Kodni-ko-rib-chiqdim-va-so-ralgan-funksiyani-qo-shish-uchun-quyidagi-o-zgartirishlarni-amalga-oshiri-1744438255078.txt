@@ -1,0 +1,328 @@
+Kodni ko‘rib chiqdim va so‘ralgan funksiyani qo‘shish uchun quyidagi o‘zgartirishlarni amalga oshirish kerak:
+
+1. Haydovchi telefon raqamini kiritgandan so‘ng, 10 kunlik sinov muddati uchun guruhga havola yaratiladi.
+2. Bu havola ochiq ko‘rsatilmaydi, faqat post tagida Inline Keyboard tugmasi sifatida chiqadi.
+3. Havola faqat bir marta ishlatilishi uchun `member_limit: 1` bilan yaratiladi.
+4. Haydovchi guruhga qo‘shilgandan so‘ng, bot ushbu havolani guruh sozlamalaridan o‘chiradi (`revokeChatInviteLink` orqali).
+5. Agar haydovchi qayta kirmoqchi bo‘lsa, havola eskirgan deb xabar beriladi.
+
+Hozirgi kodda `createInviteLink`, `checkInviteLink` va `markInviteLinkAsUsed` funksiyalari allaqachon mavjud, shuning uchun men ularni optimallashtirib, yangi talablarni qo‘shaman. Quyida faqat o‘zgartirilgan qismlar va yangi logikani keltiraman.
+
+### O‘zgartirishlar:
+
+#### 1. `createInviteLink` funksiyasida havola maxfiy saqlanadi
+Havola faqat tugma sifatida ko‘rinadi va ochiq ko‘rsatilmaydi. Buning uchun `createInviteLink` funksiyasi o‘zgartirilmaydi, chunki u allaqachon yaxshi ishlaydi, lekin uni yuborish jarayoni o‘zgaradi.
+
+#### 2. Telefon raqamidan keyin post yuborish
+Telefon raqami tasdiqlangandan so‘ng, `bot.on('message')` ichidagi `waiting_phone` holatida yangi logika qo‘shiladi. Havola tugma sifatida yuboriladi va ochiq ko‘rsatilmaydi.
+
+#### 3. Havolani guruhdan o‘chirish
+Haydovchi guruhga qo‘shilgandan so‘ng, bot `revokeChatInviteLink` orqali havolani o‘chiradi. Bu jarayon `checkInviteLink` funksiyasida amalga oshiriladi.
+
+#### 4. Qayta kirishni oldini olish
+Havola bir marta ishlatilgandan so‘ng, `isActive: false` qilinadi va qayta ishlatilishi mumkin emas.
+
+### Yangilangan kod qismi:
+
+#### `bot.on('message')` ichidagi `waiting_phone` holati:
+Telefon raqami tasdiqlangandan so‘ng, guruh havolasi faqat tugma sifatida yuboriladi.
+
+```javascript
+// Telefon raqam kutilayotgan holat
+else if (user.state === "waiting_phone") {
+  // Kontakt orqali telefon raqam kelgan bo'lsa
+  if (msg.contact && msg.contact.phone_number) {
+    user.phoneNumber = msg.contact.phone_number;
+  }
+  // Matn orqali telefon raqam kelgan bo'lsa
+  else {
+    // Telefon raqam formatini tekshiramiz
+    const phoneRegex = /^\+?[0-9]{10,13}$/;
+    if (!phoneRegex.test(msg.text)) {
+      bot.sendMessage(
+        chatId,
+        "Telefon raqamingiz noto'g'ri formatda. Iltimos, raqamni +998XXXXXXXXX formatida kiriting yoki \"Telefon raqamni yuborish\" tugmasini bosing:",
+      );
+      return;
+    }
+
+    user.phoneNumber = msg.text;
+  }
+
+  // State ni normal ga o'zgartiramiz
+  user.state = "normal";
+  user.role = "driver"; // Haydovchi roli saqlanadi
+  await user.save();
+
+  // Haydovchi uchun asosiy menu
+  const driverOptions = {
+    reply_markup: {
+      keyboard: [[{ text: "Bot haqida" }, { text: "Aloqa" }]],
+      resize_keyboard: true,
+      one_time_keyboard: false,
+    },
+  };
+
+  // Ro'yxatdan o'tish muvaffaqiyatli xabari
+  await bot.sendMessage(
+    chatId,
+    `Tabriklaymiz, ${user.fullName}! Siz haydovchi sifatida muvaffaqiyatli ro'yxatdan o'tdingiz.\n\nTelefon raqamingiz: ${user.phoneNumber}`,
+  );
+
+  // 10 kunlik sinov muddati uchun guruhga havola yaratamiz
+  try {
+    const inviteLink = await createInviteLink(userId, user.fullName);
+
+    if (inviteLink) {
+      // Havola tugmasi sifatida yuboriladi, ochiq ko‘rsatilmaydi
+      const inviteOptions = {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Guruhga qo'shilish (10 kunlik sinov)",
+                url: inviteLink,
+              },
+            ],
+          ],
+        },
+      };
+
+      // Post sifatida xabar yuboramiz
+      await bot.sendMessage(
+        chatId,
+        "Siz uchun 10 kunlik bepul sinov muddati aktivlashtirildi! Quyidagi tugma orqali guruhga qo'shiling:",
+        inviteOptions,
+      );
+
+      // Haydovchi menyusi
+      await bot.sendMessage(
+        chatId,
+        "Botdan foydalanishni davom ettirish uchun quyidagi menyudan foydalaning:",
+        driverOptions,
+      );
+    } else {
+      await bot.sendMessage(
+        chatId,
+        "Guruhga qo'shilish havolasi yaratilmadi. Iltimos, keyinroq qayta urinib ko'ring yoki admin bilan bog'laning.",
+        driverOptions,
+      );
+    }
+  } catch (error) {
+    console.error("Error creating invite link:", error);
+    await bot.sendMessage(
+      chatId,
+      "Havola yaratishda xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring.",
+      driverOptions,
+    );
+  }
+
+  return;
+}
+```
+
+#### `checkInviteLink` funksiyasida havolani o‘chirish:
+Havola ishlatilganda, uni guruh sozlamalaridan o‘chirish uchun `revokeChatInviteLink` ishlatiladi.
+
+```javascript
+const checkInviteLink = async (inviteLink, userId) => {
+  try {
+    // Havolani bazadan tekshiramiz
+    const invite = await DriverInvite.findOne({
+      inviteLink: inviteLink,
+      isActive: true,
+    });
+
+    if (!invite) {
+      return {
+        valid: false,
+        message:
+          "Bu havola orqali guruhga qo'shilish mumkin emas. Havola eskirgan yoki bir marta ishlatilib bo'lingan.",
+      };
+    }
+
+    // Faqat havola yaratgan foydalanuvchi uchun
+    if (invite.telegramId !== userId) {
+      return {
+        valid: false,
+        message: "Bu havola sizga tegishli emas.",
+      };
+    }
+
+    // Havola yaroqli, guruhdan o‘chirishga harakat qilamiz
+    try {
+      if (inviteLink.startsWith("https://t.me/+")) {
+        const linkParts = inviteLink.split("+");
+        if (linkParts.length > 1) {
+          const linkCode = linkParts[1];
+          await bot.revokeChatInviteLink(config.telegramChatId, linkCode);
+          console.log("Invite link revoked successfully:", inviteLink);
+        }
+      }
+    } catch (revokeError) {
+      console.warn("Error revoking invite link:", revokeError.message);
+      // O‘chirish muvaffaqiyatsiz bo‘lsa ham jarayon davom etadi
+    }
+
+    // Havolani ishlatilgan deb belgilaymiz
+    invite.isActive = false;
+    invite.usedAt = new Date();
+    await invite.save();
+
+    return {
+      valid: true,
+      inviteId: invite._id,
+    };
+  } catch (error) {
+    console.error("Error checking invite link:", error);
+    return {
+      valid: false,
+      message:
+        "Havolani tekshirishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.",
+    };
+  }
+};
+```
+
+#### `createInviteLink` funksiyasida kichik optimallashtirish:
+Havola yaratishda `expire_date` va `member_limit` allaqachon to‘g‘ri sozlangan, shuning uchun bu funksiyani o‘zgartirish shart emas. Faqat xatoliklardan himoyalanishni kuchaytirish uchun qo‘shimcha log qo‘shiladi.
+
+```javascript
+const createInviteLink = async (userId, fullName) => {
+  try {
+    // Eski havolani o'chiramiz
+    const oldInvite = await DriverInvite.findOne({
+      telegramId: userId,
+      isActive: true,
+    });
+    if (oldInvite) {
+      oldInvite.isActive = false;
+      await oldInvite.save();
+
+      try {
+        if (
+          oldInvite.inviteLink &&
+          oldInvite.inviteLink.startsWith("https://t.me/+")
+        ) {
+          const linkParts = oldInvite.inviteLink.split("+");
+          if (linkParts.length > 1) {
+            const oldLinkCode = linkParts[1];
+            await bot.revokeChatInviteLink(config.telegramChatId, oldLinkCode);
+            console.log("Old invite link revoked successfully");
+          }
+        }
+      } catch (revokeError) {
+        console.warn("Error revoking old link:", revokeError.message);
+      }
+    }
+
+    // Guruhga yangi havola yaratamiz
+    let inviteLink = "";
+    try {
+      const expireDate = Math.floor(Date.now() / 1000) + 864000; // 10 kun
+      const createLinkResult = await bot.createChatInviteLink(
+        config.telegramChatId,
+        {
+          name: `Driver: ${fullName}`,
+          member_limit: 1,
+          expire_date: expireDate,
+        }
+      );
+
+      if (createLinkResult && createLinkResult.invite_link) {
+        inviteLink = createLinkResult.invite_link;
+        console.log("New invite link created:", inviteLink);
+      } else {
+        inviteLink = config.telegramGroupLink;
+        console.log("Using static group link as fallback");
+      }
+    } catch (linkError) {
+      console.warn("Error creating invite link:", linkError.message);
+      inviteLink = config.telegramGroupLink;
+    }
+
+    // Yangi havolani saqlash
+    const driverInvite = new DriverInvite({
+      telegramId: userId,
+      fullName: fullName,
+      inviteLink: inviteLink,
+      isActive: true,
+    });
+    await driverInvite.save();
+
+    return inviteLink;
+  } catch (error) {
+    console.error("Error in createInviteLink:", error);
+    return config.telegramGroupLink;
+  }
+};
+```
+
+### Qo‘shimcha logika:
+#### Guruhga qo‘shilganini aniqlash:
+Telegram Bot API’da foydalanuvchi guruhga qo‘shilganini aniqlash uchun `chat_member` hodisasidan foydalanamiz. Quyida ushbu hodisani qo‘shish uchun kod:
+
+```javascript
+// Guruhga qo‘shilganini aniqlash
+bot.on("chat_member", async (update) => {
+  try {
+    const chatId = update.chat.id;
+    const userId = update.new_chat_member.user.id;
+    const status = update.new_chat_member.status;
+
+    if (chatId.toString() === config.telegramChatId && status === "member") {
+      // Foydalanuvchi guruhga qo‘shildi
+      const invite = await DriverInvite.findOne({
+        telegramId: userId,
+        isActive: true,
+      });
+
+      if (invite) {
+        // Havolani o‘chiramiz
+        try {
+          if (invite.inviteLink.startsWith("https://t.me/+")) {
+            const linkParts = invite.inviteLink.split("+");
+            if (linkParts.length > 1) {
+              const linkCode = linkParts[1];
+              await bot.revokeChatInviteLink(config.telegramChatId, linkCode);
+              console.log(
+                `Invite link revoked after user joined: ${invite.inviteLink}`
+              );
+            }
+          }
+        } catch (revokeError) {
+          console.warn("Error revoking link after join:", revokeError.message);
+        }
+
+        // Havolani ishlatilgan deb belgilaymiz
+        invite.isActive = false;
+        invite.usedAt = new Date();
+        await invite.save();
+
+        // Foydalanuvchiga xabar yuboramiz
+        await bot.sendMessage(
+          userId,
+          "Tabriklaymiz! Siz guruhga muvaffaqiyatli qo'shildingiz. 10 kunlik sinov muddati boshlandi!"
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error handling chat_member update:", error);
+  }
+});
+```
+
+### Muhim eslatmalar:
+1. **Bot ruxsatlari**: Bot guruhda admin bo‘lishi kerak va `chat_member` hodisalarini qabul qilish uchun `allowChatMemberUpdates` yoqilgan bo‘lishi kerak. BotFather’da `/setprivacy` orqali `Disabled` rejimini tanlang.
+2. **Havola maxfiyligi**: Havola faqat Inline Keyboard tugmasi sifatida yuboriladi va ochiq ko‘rsatilmaydi.
+3. **Havola eskirishi**: Havola `member_limit: 1` va `expire_date` bilan cheklangan, shuning uchun bir marta ishlatilgandan so‘ng yoki 10 kundan keyin ishlamaydi.
+4. **Qayta kirishni oldini olish**: `chat_member` hodisasi orqali foydalanuvchi guruhga qo‘shilganda havola o‘chiriladi va `isActive: false` qilinadi.
+5. **Test qilish**: Kodni test muhitida sinab ko‘ring, ayniqsa guruh admin ruxsatlari va `chat_member` hodisalarini.
+
+### Natija:
+- Telefon raqami tasdiqlangandan so‘ng, haydovchi 10 kunlik sinov muddati uchun guruhga qo‘shilish tugmasini oladi.
+- Tugma faqat Inline Keyboard sifatida ko‘rinadi, havola ochiq ko‘rsatilmaydi.
+- Haydovchi guruhga qo‘shilgandan so‘ng, havola guruh sozlamalaridan o‘chiriladi va qayta ishlatib bo‘lmaydi.
+- Agar haydovchi qayta kirmoqchi bo‘lsa, "Havola eskirgan" xabari chiqadi.
+
+Agar qo‘shimcha savollar yoki aniqroq o‘zgartirishlar kerak bo‘lsa, iltimos, ayting!
